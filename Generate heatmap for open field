@@ -1,0 +1,125 @@
+% -------------------------------------------------------------------
+% Ruifeng Chen
+% Jun Wang Lab @ Texas A&M Health Science Center
+% sa15008146@tamu.edu
+% Dec/12/2021
+%--------------------------------------------------------------------
+files = 'C:\Users\where your file is saved';
+NeedSplitData = 1;
+% -------------------------------------------------------------------------
+data = txt2data(files);
+if NeedSplitData
+    maps = splitData(data,files);
+else
+    maps = heatmaps(files);
+end
+% -------------------------------------------------------------------------
+function heatmap = heatmaps(files)
+    % files = 'C:\Users\crf\Desktop\day3_30min_XY coordinate';
+    %----------------------------------------------------------------------
+    fil = dir([files,'\*.mat']);
+    L = length(fil);
+    map = zeros([400,400,L]);
+    heatmap = map;
+    ksigma=fspecial('gaussian',  81, 5);
+    for i =1:L
+        filename = [files,'\',fil(i).name];
+        load(filename)
+        data = (data+2)*20;
+        [~,Le]=size(data);
+        for ii =1:Le
+            map(data(1,ii),data(2,ii),i) = map(data(1,ii),data(2,ii),i) +1;
+        end
+        conv_pic = map(:,:,i);
+        for ii = 1:3
+            conv_pic = conv2(conv_pic,ksigma,'same');
+            conv_pic = sqrt(conv2(conv_pic,ksigma,'same'));
+        end
+        conv_pic = conv2(conv_pic,ksigma,'same');
+        conv_pic = conv2(conv_pic,ksigma,'same');
+        heatmap(:,:,i) = conv_pic;
+    end
+    for i =1:L
+       figure
+       imagesc(heatmap(:,:,i)/max(heatmap(:)))
+       title(fil(i).name)
+       colormap('jet')
+       colorbar
+    end
+end
+% -------------------------------------------------------------------------
+function datas = txt2data(files) 
+    % files = 'C:\Users\crf\Desktop\track Export';
+    %----------------------------------------------------------------------
+    datas = cell(1,1);
+    fil = dir([files,'\*.txt']);
+    for i =1:length(fil)
+        filename = [files,'\',fil(i).name];
+        fidin=fopen(filename,'r');
+        indx = 1;
+        ind = 0;
+    
+        data = zeros([2,30000]);
+        while ~feof(fidin)
+            tline=fgetl(fidin);
+            if ~isempty(tline)  
+                if tline(1)=='='
+                    ind = ind + 1;
+                    datas{ind}= data;
+                end
+                try
+                k=textscan(tline,'%s %f %f %f');
+                coord = cell2mat(k(2:3));
+                if ~(coord(1)==0 || coord(2)==0)
+                    datas{ind}(:,indx) = coord;
+                    indx = indx +1;
+                end
+                catch
+                    indx = 1;
+                end
+            end
+        end
+    
+        fclose(fidin); 
+        save([filename(1:end-11),'.mat'],'datas')
+    end
+end
+% -------------------------------------------------------------------------
+function maps = splitData(data,files)
+    % ---------------------------------------------------------------------
+    maps = zeros([400,400,numel(data)]);
+    ksigma=fspecial('gaussian',  21, 5);
+    for i = 1:numel(data)
+        dataTemp = data{i};
+        dataTemp = (dataTemp+2)*20;
+        for ii =1:size(dataTemp,2)
+            maps(dataTemp(1,ii),dataTemp(2,ii),i) = maps(dataTemp(1,ii),dataTemp(2,ii),i) +1;
+        end
+        conv_pic = maps(:,:,i);
+        for ii = 1:3
+            conv_pic = conv2(conv_pic,ksigma,'same');
+            conv_pic = sqrt(conv2(conv_pic,ksigma,'same'));
+        end
+        conv_pic = conv2(conv_pic,ksigma,'same');
+        conv_pic = conv2(conv_pic,ksigma,'same');
+        maps(:,:,i) = conv_pic*18000000/sum(conv_pic,'all');
+    end
+    lim = [prctile(maps(:),30), prctile(maps(:),99)];
+    for i =1:numel(data)
+       figure
+       imagesc(maps(:,end:-1:1,i)');
+       title(['maps',num2str(i)])
+       axis off
+       colormap('jet')
+       caxis(lim);
+       colorbar;
+       saveas(gca,[files,'\','maps',num2str(i),'.jpg']);
+    end
+end
+% -------------------------------------------------------------------------
+% for i = 1: length(data)
+% writematrix(maps(:,:,i),[files,'\map',num2str(i),'.csv'])
+% end
+% for i = 1: length(data)
+% writematrix(data{i},[files,'\rawdata',num2str(i),'.csv'])
+% end
